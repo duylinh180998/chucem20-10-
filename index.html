@@ -342,12 +342,12 @@
     </div>
   </div>
 
-  <!-- ===== Nhạc nền =====
-       MUỐN ĐỔI NHẠC? Chỉ cần đặt đường dẫn MP3 của em vào thuộc tính src bên dưới
-       (hoặc để file nhạc cạnh index.html rồi ghi src="nhac.mp3").
-       Nếu src rỗng / không tải được, trang sẽ TỰ ĐỘNG chơi một bản piano
-       lãng mạn được tổng hợp bằng Web Audio API (luôn chạy, không cần mạng). -->
-  <audio id="bgm" loop preload="auto" crossorigin="anonymous" src=""></audio>
+  <!-- ===== Nhạc nền: "Dành Cho Em" =====
+       File danh-cho-em.mp3 nằm cùng thư mục với index.html — giữ hai file đi cùng nhau.
+       MUỐN ĐỔI NHẠC? Chỉ cần sửa src bên dưới (tên file khác hoặc một link MP3).
+       Nếu vì lý do nào đó không phát được, trang TỰ ĐỘNG chuyển sang một bản piano
+       lãng mạn tổng hợp bằng Web Audio API để không bao giờ bị im lặng. -->
+  <audio id="bgm" loop preload="auto" src="danh-cho-em.mp3"></audio>
 
 <!-- ===================== THƯ VIỆN (CDN + fallback tự động) ===================== -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1449,6 +1449,7 @@
     function startSynth() {
       if (usingSynth) return;
       usingSynth = true;
+      try { el.pause(); el.volume = 0; } catch (e) { /* không sao */ }
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       ctx = new AC();
@@ -1475,19 +1476,21 @@
     return {
       start() {
         if (started) return; started = true;
-        const src = el.getAttribute("src");
-        if (src) {
-          const p = el.play();
-          if (p && p.then) {
-            p.then(() => fade(0.55, 3)).catch(startSynth);
-          } else {
-            fade(0.55, 3);
-          }
-          // Nếu sau 2.5s file vẫn chưa phát được → chuyển sang piano tổng hợp
-          setTimeout(() => { if (el.paused || el.readyState < 2) startSynth(); }, 2500);
-        } else {
-          startSynth();
-        }
+        if (!el.getAttribute("src")) { startSynth(); return; }
+
+        let playing = false;
+        el.addEventListener("playing", () => {
+          if (usingSynth) { el.pause(); return; }   // piano đã chạy rồi thì thôi
+          playing = true;
+          fade(0.55, 3);
+        }, { once: true });
+        el.addEventListener("error", () => { if (!playing) startSynth(); }, { once: true });
+
+        const p = el.play();
+        if (p && p.catch) p.catch(() => { if (!playing) startSynth(); });
+
+        // Mạng chậm hoặc trình duyệt chặn: quá 5s chưa nghe thấy gì thì dùng piano tổng hợp
+        setTimeout(() => { if (!playing) startSynth(); }, 5000);
       },
       toggle() {
         const on = this.isOn();
